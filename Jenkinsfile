@@ -23,22 +23,25 @@ pipeline {
         stage('Git Diff Check') {
     steps {
         script {
-            def lastCommit = sh(script: "git rev-parse HEAD", returnStdout: true).trim()
-            def prevCommit = sh(script: "git rev-parse HEAD~1 || echo none", returnStdout: true).trim()
-            
-            if (prevCommit == "none") {
-                echo "First commit build — proceeding..."
+            // Get latest commit hash from remote
+            def latestCommit = sh(script: "git rev-parse origin/main", returnStdout: true).trim()
+
+            // Read last successful commit hash (if exists)
+            def lastCommitFile = "${env.WORKSPACE}/.last_successful_commit"
+            def lastCommit = fileExists(lastCommitFile) ? readFile(lastCommitFile).trim() : ""
+
+            if (lastCommit == latestCommit) {
+                echo "No code changes detected — skipping build."
+                currentBuild.result = 'ABORTED'
+                error("Aborting build: No code changes")
             } else {
-                def diff = sh(script: "git diff --name-only ${prevCommit} ${lastCommit} | wc -l", returnStdout: true).trim()
-                if (diff == "0") {
-                    error("No file changes detected between last two commits.")
-                } else {
-                    echo "Code changes detected — proceeding with build."
-                }
+                echo "Code changes detected — proceeding with build."
+                writeFile file: lastCommitFile, text: latestCommit
             }
         }
     }
 }
+
 
 
         stage('Build Image') {
