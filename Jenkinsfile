@@ -21,19 +21,25 @@ pipeline {
         }
 
         stage('Git Diff Check') {
-            steps {
-                script {
-                    def diffCount = sh(script: "git diff --name-only origin/main | wc -l", returnStdout: true).trim()
-                    if (diffCount == "0") {
-                        echo "No updates detected"
-                        currentBuild.result = 'ABORTED'
-                        error("Aborting build: No code changes")
-                    } else {
-                        echo "Changes detected: ${diffCount} files modified."
-                    }
+    steps {
+        script {
+            def lastCommit = sh(script: "git rev-parse HEAD", returnStdout: true).trim()
+            def prevCommit = sh(script: "git rev-parse HEAD~1 || echo none", returnStdout: true).trim()
+            
+            if (prevCommit == "none") {
+                echo "First commit build — proceeding..."
+            } else {
+                def diff = sh(script: "git diff --name-only ${prevCommit} ${lastCommit} | wc -l", returnStdout: true).trim()
+                if (diff == "0") {
+                    error("No file changes detected between last two commits.")
+                } else {
+                    echo "Code changes detected — proceeding with build."
                 }
             }
         }
+    }
+}
+
 
         stage('Build Image') {
             when {
